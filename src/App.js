@@ -4,7 +4,7 @@ import { SignClient } from '@walletconnect/sign-client';
 import { Web3Modal } from '@web3modal/standalone';
 import './App.css';
 
-const web3modal = new Web3Modal({
+const web3Modal = new Web3Modal({
   projectId: process.env.REACT_APP_PROJECT_ID,
   standaloneChains: ["eip155:5"]
 
@@ -12,28 +12,48 @@ const web3modal = new Web3Modal({
 
 function App() {
   
-  const [signClient, setSignClient] = useState();
+const [signClient, setSignClient] = useState();
+
+const [session, setSession] = useState([]);
+
+const [account, setAccount] = useState([]);
+
+async function createClient(){
+
+  try {
+    const client = await SignClient.init({
+      projectId: process.env.REACT_APP_PROJECT_ID
+    })
+    console.log('client', client)
+    setSignClient(client)
+    await subscribeToEvents(client)
+  } catch (error) {
+    console.log(error)
+  }
+}
 
 
 async function handleConnect(){
   if (!signClient) throw Error("Cannot connect. Sign client is not exists")
   try {
-    /// dapp is going to send a proposal namespace
-/// asking for the permissions
     const proposalNamespace = {
-      eip155:{
-        chains: ["eip155:5"],
-        methods:["eth_sendTransaction"],
-        events:["connect", "disconnect"]
-      }
-    }
+      eip155: {
+          methods: ["eth_sendTransaction"],
+          chains: ["eip155:5"],
+          events: ["connect", "disconnect"]
+        },
+      };
 
-    const {uri} = await signClient.connect({
-      requiredNamespace: proposalNamespace})
-      console.log(uri)
+    const {uri, approval} = await signClient.connect({
+      requiredNamespaces: proposalNamespace,})
+      // console.log(uri)
 
       if (uri) {
-        web3modal.openModal({uri})
+        web3Modal.openModal({uri});
+        const sessionNamespace = await approval();
+        // console.log('sessionNamespace')
+        onSessionConnect(sessionNamespace)
+        web3Modal.closeModal();
       }
 
   } catch (error) {
@@ -41,18 +61,49 @@ async function handleConnect(){
   }
 }
 
-  async function createClient(){
+async function onSessionConnect(session){
+  if(!session) throw Error("Client doesn't exist")
 
-    try {
-      const client = await SignClient.init({
-        projectId: process.env.REACT_APP_PROJECT_ID
-      })
-      console.log('client', client)
-      setSignClient(client)
-    } catch (error) {
-      console.log(error)
-    }
+  try {
+    setSession(session);
+    setAccount(session.namespaces.eip155.accounts[0].slice(9)); 
+  } catch (error) {
+    console.log(error)
   }
+}
+
+
+async function handleDisconnect(){
+  try {
+    await signClient.disconnect({
+      topic: session.topic,
+      code: 6000,
+      message:"User disconnected"
+    })
+    reset();
+  } catch (error) {
+    console.log(error)
+  }
+}
+
+
+async function subscribeToEvents(client){
+  if(!client) throw Error("No events to subscribe")
+
+  try {
+    client.on("session_delete", () => {
+      console.log("user disconnected the session");
+      reset()
+    })
+  } catch (error) {
+    console.log.error()
+  }
+}
+
+const reset = () =>  {
+  setAccount([]);
+  setSession([]);
+}
 
   useEffect(() => {
     if (!signClient){
@@ -66,9 +117,18 @@ async function handleConnect(){
       <h1> 
         WC Tutorial
       </h1> 
-      <button onClick={handleConnect} disabled={!signClient}>
-      Connect
-      </button>
+      {account.length ? (
+          <>
+          <p> {account}</p>
+          <button onClick={handleDisconnect}>Disconnect</button>
+          </>
+          ): (
+          
+          <button onClick={handleConnect} disabled={!signClient}>
+          Connect
+          </button>
+        )}
+    
     </div>
   );
 }
