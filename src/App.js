@@ -18,6 +18,8 @@ const [session, setSession] = useState([]);
 
 const [account, setAccount] = useState([]);
 
+const [txnHash, setTxnHash] = useState();
+
 async function createClient(){
 
   try {
@@ -100,6 +102,38 @@ async function subscribeToEvents(client){
   }
 }
 
+
+async function handleSend(){
+try {
+  //create the transaction parameters
+  // send this transaction
+  // result // txn url
+  const trx = {
+      from: account,
+      to: "0xf8050Ec6CdE55153a2646A6eb305Daf0e10E44bA",
+      data: "0x",
+      gasPrice: "0x029104e28c",
+      gasLimit: "0x5208",
+      value: "0x00",
+  
+  };
+
+  const result = await signClient.request({
+    topic: session.topic,
+    request: {
+      method: "eth_sendTransaction",
+      params: [trx]
+    },
+    chainId: "eip155:5"
+})
+
+setTxnHash(result)
+
+} catch (error) {
+  
+}
+}
+
 const reset = () =>  {
   setAccount([]);
   setSession([]);
@@ -121,6 +155,9 @@ const reset = () =>  {
           <>
           <p> {account}</p>
           <button onClick={handleDisconnect}>Disconnect</button>
+          <button onClick={handleSend}>Send</button>
+          { txnHash && <p>View your transaction <a href={`https://goerli.etherscan.io/tx/${txnHash}`} target="_blank" rel="noreferrer">here</a>!</p>}
+        
           </>
           ): (
           
